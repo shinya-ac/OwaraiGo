@@ -23,6 +23,16 @@ import (
 //go get -u github.com/saintfish/chardet # 文字コードの判定用
 //go get -u golang.org/x/net/html/charset # 文字コードの変換用
 
+//前提：
+//HTMLのDOM構造
+//<要素名 属性="属性値">
+//属性→attributeのこと。hrefとかdivとかのこと。
+//要素→classとかidとか
+//属性値→クラス名とか
+//p{				←このpがselector、
+//	color: red;		←このcolorがプロパティ。redが値。
+//}
+
 var DbConnection *sql.DB
 
 type Page struct { //情報を受け取る構造体を定義
@@ -82,10 +92,13 @@ func findLink(n *html.Node, w http.ResponseWriter) {
 }
 
 func scraping(w http.ResponseWriter, r *http.Request) {
+	//阿部寛のページでスクレイピング試したい場合↓
 	//url := "http://abehiroshi.la.coocan.jp/"
 
+	//なんか知らん人の動的なブログでスクレイピング試したい場合↓
 	//url := "https://www.hirorocafe.com/"
 
+	//ルミネザ吉本でスクレイピングする場合↓
 	url := "https://lumine.yoshimoto.co.jp/schedule/"
 
 	maxConnection := make(chan bool, 200)
@@ -94,29 +107,13 @@ func scraping(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	start := time.Now()
 
+	//以下、1スレッドの意味のないゴルーチン
 	for maxRequest := 0; maxRequest < 1; maxRequest++ {
 		wg.Add(1)
 		maxConnection <- true
-		go func() { // go func(){/*処理*/}とやると並列処理を開始してくれるよ！
-			defer wg.Done() // wg.Done()を呼ぶと並列処理が一つ終わったことを便利な奴に教えるよ！
+		go func() { // go func(){/*処理*/}とやると並列処理を開始してくれる。
+			defer wg.Done() // wg.Done()を呼ぶと並列処理が一つ終わったことを便利な奴に教える。
 
-			// resp, err := http.Get(url) // GETリクエストでアクセスするよ！
-			// if err != nil {
-			// 	fmt.Fprintf(os.Stderr, "print: %v\n", err)
-			// 	return // 回線が狭かったりするとここでエラーが帰ってくるよ！
-			// }
-			// defer resp.Body.Close() // 関数が終了するとなんかクローズするよ！（おまじない的な）
-
-			// body, _ := ioutil.ReadAll(resp.Body)
-
-			// // 文字コードを判定
-			// detector := chardet.NewTextDetector()
-			// detectResult, _ := detector.DetectBest(content)
-			// // => 例：UTF-8
-
-			// 文字コードの変換
-			// bufferReader := bytes.NewReader(content)
-			// reader, _ := charset.NewReaderLabel(detectResult.Charset, bufferReader)
 			//Chromeのドライバーの設定
 			driver := agouti.ChromeDriver()
 			defer driver.Stop()
@@ -143,48 +140,26 @@ func scraping(w http.ResponseWriter, r *http.Request) {
 			}
 
 			reader := strings.NewReader(content)
-
-			// HTMLパース
 			doc, _ := goquery.NewDocumentFromReader(reader)
-			//fmt.Fprintf(w, "<h2>パースされた文字コード：%#v</h2>", doc)
 
-			//rslt := doc.Find("div.container > p")
+			//任意の芸人に当てはまる開演日のa要素を探しにいくコード
 			rslt := doc.Find("div.schedule-time")
 			rslt.Each(func(i int, s *goquery.Selection) {
 				regex := regexp.MustCompile(`.*オズワルド.*`)
 				res := regex.MatchString(s.Text())
-				// if res == true {
-				// 	parentSelection := s.Parent()
-				// 	ps, _ := parentSelection.Html()
-				// 	fmt.Fprintf(w, "親セレクション：%s", ps)
-				// 	scheduleDetailSelection := parentSelection.ChildrenFiltered("schedule-detail")
-				// 	selections, err := scheduleDetailSelection.Html()
-				// 	if err != nil {
-				// 		fmt.Fprintln(w, "セレクションなんてありません", err)
-				// 	} else {
-				// 		fmt.Fprintf(w, "セレクションの一覧：%s\n", selections)
-				// 		fmt.Fprintf(w, "セレクション：%s\n", scheduleDetailSelection.Text())
-				// 	}
-				// btns := scheduleDetailSelection.ChildrenFiltered("btns > ul > li")
-				// if btns == nil {
-				// 	fmt.Fprintln(w, "btnsセクションがないです。")
-				// }
-				// val, exists := btns.Attr("href")
-				// if !exists {
-				// 	fmt.Fprintln(w, "リンクがないです。", val)
-				// } else {
-				// 	fmt.Fprintln(w, "scheduleの値：%s</h2>", val)
-				// }
-				// } else {
-				// 	fmt.Fprintln(w, "かまいたちは存在しません。")
-				// }
-				fmt.Fprintf(w, "<h2>%f</h2>", res)
+				if res == true {
+					parentSelection := s.Parent()
+					link := parentSelection.Find("div.btns")
+					fmt.Fprintln(w, "リンク：%f", link.Text())
+					a := link.Find("a")
+					val, _ := a.Attr("href")
+					fmt.Fprintln(w, "リンクやで", val)
+				}
+				fmt.Fprintf(w, "<h2>%#v</h2>", res)
 			})
 
-			//fmt.Fprintf(w, "<h2>文字コード：%f</h2>", detectResult.Charset)
-
-			count++         // アクセスが成功したことをカウントするよ！
-			<-maxConnection // ここは並列する数を抑制する奴だよ！詳しくはググって！
+			count++         // アクセスが成功したことをカウントする
+			<-maxConnection // ここは並列する数を抑制する奴。詳しくはググる
 		}()
 	}
 	wg.Wait()

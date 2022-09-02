@@ -1,8 +1,7 @@
 FROM golang:1.19
 
-RUN mkdir /var/www
-COPY main.go /var/www
+WORKDIR /var/www
 
-RUN echo "hello wrold" >> /var/www/sample.txt
+COPY ./src /var/www
 
-CMD ["go", "run", "/var/www/main.go"]
+CMD ["go","run","main.go"]
