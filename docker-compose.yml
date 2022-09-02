@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  db:
+    image: nouchka/sqlite3:latest
+    volumes:
+      - .src/example.sql:/var/lib/sqlite
+
+  web:
+    build: .
+    command: go run main.go
+    volumes:
+      - ./src:/app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
