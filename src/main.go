@@ -23,6 +23,15 @@ import (
 //go get -u github.com/saintfish/chardet # 文字コードの判定用
 //go get -u golang.org/x/net/html/charset # 文字コードの変換用
 
+// goquery参考記事
+// https://qiita.com/Yaruki00/items/b50e346551690b158a79
+// https://pkg.go.dev/github.com/PuerkitoBio/goquery#section-readme
+// https://undersourcecode.hatenablog.com/entry/2018/12/23/103324
+// https://qiita.com/Azunyan1111/items/a1b6c58dc868814efb51
+// https://qiita.com/mmm888/items/42383f967e44e633f0eb
+//バッチとかslack連携含めた参考記事はこれ↓
+// https://ceblog.mediba.jp/post/657126495256510464/go-%E3%81%A7%E3%82%B9%E3%82%AF%E3%83%AC%E3%82%A4%E3%83%94%E3%83%B3%E3%82%B0%E3%81%97%E3%81%9F-mediba-%E3%81%AE%E8%A8%98%E4%BA%8B%E3%82%92-slack-%E3%81%AB%E6%8A%95%E7%A8%BF%E3%81%99%E3%82%8B%E3%83%90%E3%83%83%E3%83%81%E3%82%92%E4%BD%9C%E3%81%A3%E3%81%9F%E8%A9%B1
+
 //前提：
 //HTMLのDOM構造
 //<要素名 属性="属性値">
