@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Title</title>
+    </head>
+    <body>
+    <!--GoのTemplate参考記事https://golang.hateblo.jp/entry/golang-text-html-template-->
+        <h1>{{.Title}}</h1>
+        <div>
+
+            {{ range $i, $v := .Links }}
+            <a href="{{- $v }}">リンク{{ $i }}</a>
+            {{ end }}
+        </div>
+    </body>
+</html>
