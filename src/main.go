@@ -1,7 +1,9 @@
 package main
 
 import (
+	"OwaraiGo/config"
 	"database/sql"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -10,14 +12,17 @@ import (
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
+	_ "github.com/PuerkitoBio/goquery"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sclevine/agouti"
+	_ "github.com/sclevine/agouti"
 )
 
 //go get -u github.com/PuerkitoBio/goquery スクレイピングライブラリ
 //go get github.com/sclevine/agouti スクレイピングのためのドライバー
 //go get -u github.com/saintfish/chardet # 文字コードの判定用
 //go get -u golang.org/x/net/html/charset # 文字コードの変換用
+//go get gopkg.in/ini.v1 //configのパッケージ
 
 // goquery参考記事
 // https://qiita.com/Yaruki00/items/b50e346551690b158a79
@@ -76,12 +81,13 @@ func scraping(w http.ResponseWriter, r *http.Request) {
 
 			//Chromeのドライバーの設定
 			driver := agouti.ChromeDriver()
-			defer driver.Stop()
 
 			err := driver.Start()
 			if err != nil {
 				log.Printf("Failed to start driver: %v", err)
 			}
+
+			defer driver.Stop()
 
 			page, err := driver.NewPage(agouti.Browser("chrome"))
 			if err != nil {
@@ -143,6 +149,10 @@ func renderTemplate(w http.ResponseWriter, tmp string, p *Page) {
 	}
 }
 
+func viewConfig(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, config.Config.ApiKey)
+}
+
 func main() {
 	// DbConnection, _ := sql.Open("sqlite3", "./example.sql")
 	// defer DbConnection.Close()
@@ -162,7 +172,10 @@ func main() {
 	// 	log.Fatal(err)
 	// }
 
+	fmt.Println(config.Config.ApiKey)
+
 	http.HandleFunc("/scraping/", scraping)
+	http.HandleFunc("/config/", viewConfig)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
