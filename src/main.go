@@ -2,11 +2,15 @@ package main
 
 import (
 	"OwaraiGo/config"
+	"bytes"
 	"database/sql"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -16,6 +20,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sclevine/agouti"
 	_ "github.com/sclevine/agouti"
+	"github.com/slack-go/slack"
 )
 
 //go get -u github.com/PuerkitoBio/goquery スクレイピングライブラリ
@@ -129,8 +134,12 @@ func scraping(w http.ResponseWriter, r *http.Request) {
 
 			count++         // アクセスが成功したことをカウントする
 			<-maxConnection // ここは並列する数を抑制する奴。詳しくはググる
+			//links = []string{"https://github.com/spiegel-im-spiegel", "https://hoge1.com", "https://hoge1.com"}
 
 			p := &Page{Title: "オズワルド出演日", Links: links}
+			//p = shortenUrl(p)
+			sendToSlack(p)
+			//fmt.Println(p)
 			renderTemplate(w, "view", p)
 		}()
 	}
@@ -141,12 +150,104 @@ func scraping(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, "<h2>%f 秒処理に時間がかかりました！\n</h2>", (end.Sub(start)).Seconds())
 }
 
+// 以下の短縮URLはgithubのURLにしか対応していなかった。。
+func shortenUrl(pl *Page) *Page {
+	for i := range pl.Links {
+		var buffer bytes.Buffer
+		writer := multipart.NewWriter(&buffer)
+		writer.WriteField("url", pl.Links[i])
+
+		resp, err := http.Post("http://git.io", "multipart/form-data; boundary="+writer.Boundary(), &buffer)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(pl.Links[i])
+		pl.Links[i] = string(body)
+	}
+	return pl
+}
+
 func renderTemplate(w http.ResponseWriter, tmp string, p *Page) {
 	t, _ := template.ParseFiles(tmp + ".html")
 	if err := t.Execute(w, p); err != nil {
 		//fmt.Println(err)
 		log.Fatal(err)
 	}
+}
+
+func sendToSlack(p *Page) {
+	api := slack.New(config.Config.TrialToken)
+
+	var fieldSlice []*slack.TextBlockObject
+	//URLが長すぎる問題ゆえ、取得したURLを全部Slackに送るのはやめる。
+	//for i := 0; i < len(p.Links); i++ {
+	//4件だけSlackに送る
+	for i := 0; i < 4; i++ {
+		typeField := slack.NewTextBlockObject("mrkdwn", "*出演芸人:*\nオズワルド", false, false)
+		lastUpdateField := slack.NewTextBlockObject("mrkdwn", "*ページ:*\n"+p.Links[i], false, false)
+
+		fieldSlice = append(fieldSlice, typeField)
+		fieldSlice = append(fieldSlice, lastUpdateField)
+	}
+	fieldsSection := slack.NewSectionBlock(nil, fieldSlice, nil)
+	//fmt.Printf("%s\n", fieldsSection.Type)
+	//fmt.Printf("%#v\n", fieldsSection.Text)
+	//fmt.Printf("%s\n", fieldsSection.BlockID)
+	//fmt.Printf("%s\n", fieldsSection.BlockType())
+	//fmt.Printf("%s\n", fieldsSection.Text.BlockType())
+	//fmt.Printf("%#v\n", fieldsSection.Fields)
+	//fmt.Printf("%#v\n", fieldsSection.Fields)
+	//fmt.Printf("%#v", fieldsSection.Accessory)
+	//fmt.Printf("%d", utf8.RuneCountInString(fieldsSection.Text.Text))
+	//11/9めも：slackにURLを（URLの個数分）送信することはできた。
+	//ただしURLが長いので送信可能文字数に達して「invalid block」になって処理が止まる
+	//そのため、blockの文字数を計測して送信可能文字数未満だけを送信するようにしたかった
+	//でも文字数の計測がうまくできない
+	//だから結局はウェブサイトにリンクを全部出力して、スラックからは「リンク一覧はこちらから」
+	//みたいな動線だけを送信する形になりそうかなぁと
+	//他の解決策としてはスラックにメッセージ数自体をたくさん送信するって感じやけど、それもなぁ…
+	//URLの短縮するくらいでは付け焼き刃すぎるし…
+
+	msgOption := slack.MsgOptionBlocks(fieldsSection)
+	//fmt.Printf("%f", reflect.TypeOf(msgOption))
+	//fmt.Printf("%#v", &msgOption)
+	//MsgOptionを返すメソッドは以下
+	//func MsgOptionText(text string, escape bool) MsgOption {
+	//func MsgOptionAttachments(attachments ...Attachment) MsgOption {
+	//func MsgOptionBlocks(blocks ...Block) MsgOption {
+	//→つまり、Block,Attachment,stringのどれかの型を元にする必要がある。
+
+	//最終的に以下のPostMessageには「slack.MsgOption型（可変長）」を入れる必要がある。
+	_, _, err := api.PostMessage("#todo",
+		msgOption,
+	)
+
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		return
+	}
+
+	//ファイルの送信
+	file, err := os.Open("hoge.html")
+	if err != nil {
+		panic(err)
+	}
+	_, err = api.UploadFile(
+		slack.FileUploadParameters{
+			Reader:   file,
+			Filename: "hoge.html",
+			Channels: []string{"#todo"},
+		})
+	if err != nil {
+		panic(err)
+	}
+
+	// fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
 }
 
 func viewConfig(w http.ResponseWriter, r *http.Request) {
@@ -176,6 +277,8 @@ func main() {
 
 	http.HandleFunc("/scraping/", scraping)
 	http.HandleFunc("/config/", viewConfig)
+	//http.HandleFunc("/sendToSlack/", sendToSlack)
+	//sendToSlack()
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
