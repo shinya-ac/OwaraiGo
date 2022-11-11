@@ -11,8 +11,9 @@ import (
 //go get gopkg.in/ini.v1←コンフィグファイル
 
 type ConfigList struct {
-	ApiKey    string
-	ApiSecret string
+	ApiKey     string
+	ApiSecret  string
+	TrialToken string
 }
 
 var Config ConfigList
@@ -25,8 +26,9 @@ func init() {
 	}
 
 	Config = ConfigList{
-		ApiKey:    cfg.Section("Slack").Key("hoge").String(),
-		ApiSecret: cfg.Section("Slack").Key("fuga").String(),
+		ApiKey:     cfg.Section("Slack").Key("hoge").String(),
+		ApiSecret:  cfg.Section("Slack").Key("fuga").String(),
+		TrialToken: cfg.Section("Slack").Key("trialToken").String(),
 	}
 
 }
